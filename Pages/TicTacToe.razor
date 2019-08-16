@@ -1,0 +1,281 @@
+@page "/tic-tac-toe"
+
+<h1>Tic Tac Toe</h1>
+
+<p>Let's play a game</p>
+
+<div
+    style="
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+    "
+>
+    <table 
+        class="table"
+        style="
+            width: fit-content;
+            height: fit-content;
+        "
+    >
+        <tbody>
+            @for (int i = 0; i < ticTacToeGame.BoardSize; i++) 
+            {
+                <tr
+                    style="
+                        font-size: 0;
+                    "
+                >
+                @for (int j = 0; j < ticTacToeGame.BoardSize; j++) 
+                {
+                    Console.WriteLine("i: " + i + ", j: " + j);
+                    var tempI = i;
+                    var tempJ = j;
+
+                    <td
+                        style="
+                            width: fit-content; 
+                            height: fit-content;
+                            border: 1px solid black;
+                            padding: 0px;
+                            "
+                    >
+                        <button
+                            style="
+                                width: 50px; 
+                                height: 50px; 
+                                padding: 0;
+                                line-height: 50px;
+                                font-size: 50px;
+                                border: 0;
+                                outline: 0;
+                            "
+                            @onclick=@(() => ticTacToeGame.OnMovePlayed(tempI, tempJ))
+                        >
+                            @ticTacToeGame.Board[tempI,tempJ].Draw()
+                        </button>
+                    </td>
+                }
+                </tr>
+            }
+        </tbody>
+    </table>
+    <div
+        style="
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+        "
+    >
+        <button @onclick=@(() => ticTacToeGame.BoardSize++)>+</button>
+        <button @onclick=@(() => ticTacToeGame.Reset())>Reset</button>
+        <button @onclick=@(() => ticTacToeGame.BoardSize--)>-</button>
+    </div>
+
+        @{
+            var text = "";
+            if (ticTacToeGame.GameEnded) 
+            {
+                if (ticTacToeGame.Winner > 0) 
+                {
+                    text = "Player " + ticTacToeGame.Winner  + " won this game. Press Reset for a new game.";
+                }
+
+                else {
+                    text = "Stalemete. Press Reset for a new game.";
+                }
+            }
+            
+            else {
+                if (ticTacToeGame.Winner > 0) 
+                {
+                    text = "Player " + ticTacToeGame.Winner  + " won this game. Press Reset for a new game.";
+                }
+                else 
+                {
+                    text = "Player " + ticTacToeGame.CurrentPlayer + "'s turn'";
+                }
+            }
+
+            <p>@text</p>
+        }
+</div>
+
+    
+
+@code {
+    TicTacToeGame ticTacToeGame = new TicTacToeGame();
+
+    public class TicTacToeGame
+    {
+        private readonly int MAX_BOARDSIZE = 10;
+        private readonly int MIN_BOARDSIZE = 3;
+
+        public Cell[,] Board {get; set;}
+        // 1 or 2
+        public int CurrentPlayer {get; set;}
+        // 0 (no winner), 1 or 2
+        public int Winner {get; set;}
+
+        private int _boardSize;
+        public int BoardSize {
+            get {
+                Console.WriteLine(_boardSize);
+                return _boardSize;
+                }
+            set {
+                if (value <= MAX_BOARDSIZE && value >= MIN_BOARDSIZE) {
+                    _boardSize = value;
+                }
+                Reset();
+            }
+        }
+        public int TurnNumber;
+        public bool GameEnded => (TurnNumber == (BoardSize * BoardSize)) || Winner > 0;
+
+        public TicTacToeGame() 
+        {
+            _boardSize = MIN_BOARDSIZE;
+            Reset();
+        }
+
+        public void Reset() 
+        {
+            Board = new Cell[BoardSize, BoardSize];
+
+            for (int i = 0; i < BoardSize; i++) 
+            {
+                for (int j = 0; j < BoardSize; j++) 
+                {
+                    Board[i, j] = new Cell(CellStateEnum.Empty);
+                }
+            }
+
+            Winner = 0;
+            CurrentPlayer = 1;
+            TurnNumber = 0;
+        }
+
+        public void OnMovePlayed(int row, int col) 
+        {
+            if (Winner > 0) {
+                return;
+            }
+
+            if (row < 0 || row >= BoardSize) {
+                return;
+            }
+
+            if (col < 0 || col >= BoardSize) {
+                return;
+            }
+
+            if (Board[row, col].cellState != CellStateEnum.Empty) {
+                return;
+            }
+
+            TurnNumber++;
+
+            Board[row, col].cellState = CurrentPlayer == 1 
+                ? CellStateEnum.Cross 
+                : CellStateEnum.Circle;
+
+            Winner = GetWinner();
+
+            CurrentPlayer = 3 - CurrentPlayer;
+        }
+
+        public void OnReset() 
+        {
+            Reset();
+        }
+
+        public int GetWinner() 
+        {
+            var winStates = new List<List<Cell>>();
+            
+            var winStateFallingDiagonal = new List<Cell>();
+            var winStateRaisingDiagonal = new List<Cell>();
+
+            for (int i = 0; i < BoardSize; i++) 
+            {
+                winStateFallingDiagonal.Add(Board[i, i]);
+                winStateRaisingDiagonal.Add(Board[i, BoardSize - 1 - i]);
+
+                var winStateRow = new List<Cell>();
+                var winStateColumn = new List<Cell>();
+
+                for (int j = 0; j < BoardSize; j++) 
+                {
+                    winStateRow.Add(Board[i, j]);
+                    winStateColumn.Add(Board[j, i]);
+                }
+
+                winStates.Add(winStateRow);
+                winStates.Add(winStateColumn);
+            }
+
+            winStates.Add(winStateFallingDiagonal);
+            winStates.Add(winStateRaisingDiagonal);
+
+            var winningState = winStates.FirstOrDefault(winState => {
+                var state = winState.First().cellState;
+
+                if (state == CellStateEnum.Empty) 
+                {
+                    return false;
+                }
+
+                return winState.All(cell => cell.cellState == state);
+            });
+
+            if (winningState == null) 
+            {
+                return 0;
+            }
+
+            return winningState.First()
+                .cellState == CellStateEnum.Cross 
+                    ? 1 
+                    : 2;
+        }
+    }
+
+    public class Cell
+    {
+        public CellStateEnum cellState {get; set;}
+
+        public Cell(CellStateEnum cellState)
+        {
+            this.cellState = cellState;
+        }
+
+        public string Draw() 
+        {
+            switch  (cellState) 
+            {
+                case CellStateEnum.Empty: 
+                {
+                    return "";
+                }
+                case CellStateEnum.Circle: 
+                {
+                    return "O";
+                }
+                case CellStateEnum.Cross: 
+                {
+                    return "X";
+                }
+            }
+
+            return "Err";
+        }
+    }
+
+    public enum CellStateEnum {
+        Empty, Cross, Circle
+    }
+}
