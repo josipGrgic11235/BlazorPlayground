@@ -30,7 +30,6 @@
                 >
                 @for (int j = 0; j < ticTacToeGame.BoardSize; j++) 
                 {
-                    Console.WriteLine("i: " + i + ", j: " + j);
                     var tempI = i;
                     var tempJ = j;
 
@@ -122,18 +121,20 @@
 
         private int _boardSize;
         public int BoardSize {
-            get {
-                Console.WriteLine(_boardSize);
+            get 
+            {
                 return _boardSize;
-                }
-            set {
+            }
+            set 
+            {
                 if (value <= MAX_BOARDSIZE && value >= MIN_BOARDSIZE) {
                     _boardSize = value;
                 }
                 Reset();
             }
         }
-        public int TurnNumber;
+        public int TurnNumber {get; set;}
+        public int SameCellsToWin {get; set;}
         public bool GameEnded => (TurnNumber == (BoardSize * BoardSize)) || Winner > 0;
 
         public TicTacToeGame() 
@@ -157,6 +158,7 @@
             Winner = 0;
             CurrentPlayer = 1;
             TurnNumber = 0;
+            SameCellsToWin = BoardSize >= 5 ? 5 : BoardSize;
         }
 
         public void OnMovePlayed(int row, int col) 
@@ -183,7 +185,7 @@
                 ? CellStateEnum.Cross 
                 : CellStateEnum.Circle;
 
-            Winner = GetWinner();
+            Winner = GetWinner(row, col);
 
             CurrentPlayer = 3 - CurrentPlayer;
         }
@@ -238,9 +240,127 @@
             }
 
             return winningState.First()
-                .cellState == CellStateEnum.Cross 
-                    ? 1 
-                    : 2;
+                .cellState == CellStateEnum.Cross ? 1 : 2;
+        }
+
+        public int GetWinner(int row, int col) 
+        {
+            var startPosition = new Tuple<int, int>(row, col);
+            var iterators = new List<MatrixIterator>()
+                {
+                    new MatrixIterator(startPosition, new Tuple<int, int>(0, 1), Board, BoardSize, SameCellsToWin),
+                    new MatrixIterator(startPosition, new Tuple<int, int>(1, 0), Board, BoardSize, SameCellsToWin),
+                    new MatrixIterator(startPosition, new Tuple<int, int>(1, 1), Board, BoardSize, SameCellsToWin),
+                    new MatrixIterator(startPosition, new Tuple<int, int>(-1, 1), Board, BoardSize, SameCellsToWin),
+                };
+
+            for (var i = 0; i < iterators.Count; i++) {
+                var winner = iterators[i].GetWinner();
+
+                if (winner != CellStateEnum.Empty) {
+                    return winner == CellStateEnum.Cross ? 1 : 2;
+                }
+            }
+
+            return 0;
+        }
+    }
+
+    public class MatrixIterator 
+    {
+        public Tuple<int, int> Step {get; set;}
+        public Tuple<int, int> StartPosition {get; set;}
+        public int CurrentOffset {get; set;}
+        public Cell[,] Board {get; set;}
+        public int BoardSize {get; set;}
+        public int SameCellsToWin {get; set;}
+        
+        public MatrixIterator (Tuple<int, int> startPosition, Tuple<int, int> step, Cell[,] board, int boardSize, int sameCellsToWin) 
+        {
+            StartPosition = startPosition;
+            Step = step;
+            Board = board;
+            BoardSize = boardSize;
+            SameCellsToWin = sameCellsToWin;
+            CurrentOffset = 0;
+        }
+
+        public CellStateEnum GetWinner() {
+            var indecies = new List<Tuple<int, int>>();
+            var cells = new List<Cell>();
+            var positions = CalculateNewPositions();
+            cells.Add(Board[positions.Item1.Item1, positions.Item1.Item2]);
+            indecies.Add(positions.Item1);
+
+            Console.WriteLine("================================");
+            Console.WriteLine($"Iterator ({Step.Item1},{Step.Item2})");
+            
+            positions = CalculateNewPositions();
+            while (!isPositionOutOfBounds(positions.Item1) || !isPositionOutOfBounds(positions.Item2))
+            {
+                Console.WriteLine("-");
+                Console.WriteLine($"({positions.Item1.Item1},{positions.Item1.Item2})");
+                Console.WriteLine($"({positions.Item2.Item1},{positions.Item2.Item2})");
+                Console.WriteLine("-");
+
+                if (!isPositionOutOfBounds(positions.Item1))
+                {
+                    cells.Add(Board[positions.Item1.Item1, positions.Item1.Item2]);
+                    indecies.Add(positions.Item1);
+                }
+
+                if (!isPositionOutOfBounds(positions.Item2))
+                {
+                    cells.Insert(0, Board[positions.Item2.Item1, positions.Item2.Item2]);
+                    indecies.Insert(0, positions.Item2);
+                }
+
+                positions = CalculateNewPositions();
+            }
+            
+            Console.WriteLine($"Indecies: {string.Join(", ", indecies.Select(index => $"({index.Item1},{index.Item2})"))}");
+            Console.WriteLine($"Cells: {string.Join(", ", cells.Select(cell => $"({cell.Draw()})"))}");
+            Console.WriteLine("================================");
+
+            var targetCellType = CellStateEnum.Empty;
+            int counter = 0;
+
+            for (var i = 0; i < cells.Count; i++) 
+            {
+                if (cells[i].cellState == CellStateEnum.Empty || cells[i].cellState != targetCellType) 
+                {
+                    targetCellType = cells[i].cellState;
+                    counter = 1;
+                    continue;
+                }
+
+                counter++;
+                if (counter >= SameCellsToWin) {
+                    return targetCellType;
+                }
+            }
+
+            return CellStateEnum.Empty;
+        }
+
+        public Tuple<Tuple<int, int>, Tuple<int, int>> CalculateNewPositions()
+        {
+            var newForwardPosition = new Tuple<int, int>(
+                StartPosition.Item1 + CurrentOffset * Step.Item1,
+                StartPosition.Item2 + CurrentOffset * Step.Item2);
+
+            var newBackwardPosition = new Tuple<int, int>(
+                StartPosition.Item1 - CurrentOffset * Step.Item1,
+                StartPosition.Item2 - CurrentOffset * Step.Item2);
+
+            CurrentOffset++;
+
+            return new Tuple<Tuple<int, int>, Tuple<int, int>>(newForwardPosition, newBackwardPosition);
+        }
+
+        public bool isPositionOutOfBounds(Tuple<int, int> position) {
+            return (position.Item1 >= BoardSize || position.Item1 < 0)
+                || (position.Item2 >= BoardSize || position.Item2 < 0);
         }
     }
 
